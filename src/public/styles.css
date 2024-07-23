@@ -1,0 +1,212 @@
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+:root {
+    color-scheme: light dark;
+}
+
+body {
+    font-family: Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+#login, #register {
+    width: 300px;
+    margin: auto;
+    display: none; /* Inicialmente oculto, se mostrará con JavaScript */
+}
+
+#login.active, #register.active {
+    display: block;
+}
+
+#login form, #register form {
+    display: flex;
+    flex-direction: column;
+}
+
+#login input, #register input {
+    margin-bottom: 10px;
+    padding: 10px;
+}
+
+#login button, #register button {
+    padding: 10px;
+    background-color: rgb(0, 60, 255);
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+#login button:hover, #register button:hover {
+    background-color: rgb(0, 40, 200);
+}
+
+/* Estilos para el contenido principal */
+#main-content {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    height: 100vh;
+    padding: 20px;
+    margin: 0;
+    gap: 20px;
+}
+
+#video-section {
+    display: flex;
+    flex-direction: column;
+    width: 78%;
+    height: 100%;
+}
+
+#video-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 10px;
+    height: 90%;
+    width: 100%;
+}
+
+.video-container {
+    border: 1px solid #595959;
+    border-radius: 4px;
+    background-color: #383737;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+video, img {
+    width: 100%;
+    height: auto;
+    background-color: black;
+}
+
+.empty-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ccc;
+    font-size: 1.2rem;
+    background-color: #444;
+    background-image: url('fondo-degradado.jpeg');
+    background-size: cover;
+    background-position: center;
+}
+
+.empty-slot::after {
+    content: 'Slot vacío';
+}
+
+.status {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    color: white;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 5px;
+    border-radius: 3px;
+}
+
+#control-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+    gap: 10px;
+}
+
+#control-container button {
+    padding: 10px;
+    background-color: rgb(0, 60, 255);
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+#control-container button:hover {
+    background: rgb(0, 40, 200);
+}
+
+#chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: #000;
+    height: 100%;
+    max-width: 30%;
+}
+
+#messages {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: scroll;
+    flex: 1;
+    scroll-behavior: smooth;
+    padding-bottom: 8px;
+    color: #fff;
+    word-wrap: break-word;
+}
+
+#messages > li {
+    padding: .5rem 1rem;
+    word-wrap: break-word;
+}
+
+#messages > li:nth-child(odd) {
+    background: #222;
+}
+
+#form {
+    display: flex;
+    height: 48px;
+    padding: 4px;
+    border-top: 1px solid #ccc;
+    background-color: #000;
+}
+
+#input {
+    border-radius: 9999px;
+    border: 1px solid #eee;
+    flex: 1;
+    margin: 4px;
+    padding: 0 8px;
+    color: #ffffff;
+}
+
+#input:focus {
+    outline: 0;
+}
+
+#form > button {
+    background: rgb(0, 60, 255);
+    color: #fff;
+    border: 0;
+    margin: 4px;
+    border-radius: 4px;
+}
+
+#form > button:hover {
+    background: rgb(0, 60, 255);
+}
+
+/* Estilos para el login y registro */
+body.login-page {
+    display: grid;
+    place-content: center;
+    height: 100vh;
+    padding: 36px;
+    grid-template-rows: 1fr;
+}

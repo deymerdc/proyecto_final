@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Dashboard</h1>
+    <section id="create-room">
+        <h2>Create Room</h2>
+        <form id="create-room-form">
+            <input type="text" id="new-room-name" placeholder="Room Name" required>
+            <button type="submit">Create Room</button>
+        </form>
+    </section>
+    <section id="join-room">
+        <h2>Join Room</h2>
+        <ul id="rooms-list"></ul>
+    </section>
+
+    <script>
+        // Function to fetch and display rooms
+        async function fetchRooms() {
+            const response = await fetch('/rooms');
+            if (response.ok) {
+                const rooms = await response.json();
+                const roomsList = document.getElementById('rooms-list');
+                roomsList.innerHTML = '';
+                rooms.forEach(room => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = room.name;
+                    listItem.addEventListener('click', () => {
+                        window.location.href = `/room.html?name=${room.name}`;
+                    });
+                    roomsList.appendChild(listItem);
+                });
+            } else {
+                console.error('Failed to fetch rooms');
+            }
+        }
+
+        document.getElementById('create-room-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const roomName = document.getElementById('new-room-name').value;
+
+            const response = await fetch('/create-room', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ roomName })
+            });
+
+            if (response.ok) {
+                alert('Room created successfully');
+                fetchRooms();
+            } else {
+                alert('Failed to create room');
+            }
+        });
+
+        // Fetch rooms when the page loads
+        window.addEventListener('load', fetchRooms);
+    </script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Chat Room</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div id="main-content">
+        <div id="video-section">
+            <div id="video-grid">
+                <div id="local-video-container" class="video-container">
+                    <video id="local-video" autoplay muted></video>
+                    <div id="local-status" class="status">Cámara no activa</div>
+                </div>
+                <div id="remote-video-container-1" class="video-container empty-slot">
+                    <video id="remote-video-1" autoplay></video>
+                    <div id="remote-status-1" class="status">Vídeo remoto 1</div>
+                </div>
+                <div id="remote-video-container-2" class="video-container empty-slot">
+                    <video id="remote-video-2" autoplay></video>
+                    <div id="remote-status-2" class="status">Vídeo remoto 2</div>
+                </div>
+                <div id="remote-video-container-3" class="video-container empty-slot">
+                    <video id="remote-video-3" autoplay></video>
+                    <div id="remote-status-3" class="status">Vídeo remoto 3</div>
+                </div>
+            </div>
+            <div id="control-container">
+                <button id="btn-emit">Emitir</button>
+                <button id="btn-ocultar">Ocultar</button>
+                <button id="btn-toggle-mic">Encender Micrófono</button>
+            </div>
+        </div>
+        <div id="chat-container">
+            <ul id="messages"></ul>
+            <form id="form">
+                <input type="text" id="input" placeholder="Escribe un mensaje..." autocomplete="off">
+                <button type="submit">Enviar</button>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        import { io } from 'https://cdn.socket.io/4.3.2/socket.io.esm.min.js';
+
+        const socket = io();
+        let username = localStorage.getItem('username');
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomName = urlParams.get('name');
+        let pc;
+        const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+        if (!username) {
+            window.location.href = '/';
+        }
+
+        // Join the room
+        socket.emit('join room', { roomName, username });
+
+        // Video streaming
+        const btnEmit = document.querySelector('#btn-emit');
+        const btnOcultar = document.querySelector('#btn-ocultar');
+        const btnToggleMic = document.querySelector('#btn-toggle-mic');
+        const localVideo = document.querySelector('#local-video');
+        let micEnabled = false;
+        let localStream;
+
+        function publicarMensaje(msg) {
+            document.querySelector('#local-status').innerText = msg;
+        }
+
+        async function startStream() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: micEnabled });
+                localVideo.srcObject = localStream;
+                publicarMensaje('Cámara funcionando');
+                socket.emit('start stream', username);
+                setupPeerConnection();
+                addLocalTracks();
+            } catch (error) {
+                if (error.name === 'NotAllowedError' || error.name === 'NotFoundError' || error.name === 'NotReadableError') {
+                    alert('No se puede acceder a la cámara/microfono: ' + error.message);
+                } else {
+                    console.error('Error accessing media devices:', error);
+                }
+                publicarMensaje('Error al acceder a la cámara');
+            }
+        }
+
+        function addLocalTracks() {
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+        }
+
+        function setupPeerConnection() {
+            pc = new RTCPeerConnection(configuration);
+            pc.onicecandidate = event => {
+                if (event.candidate) {
+                    socket.emit('ice-candidate', event.candidate);
+                }
+            };
+            pc.ontrack = event => {
+                const remoteVideo = document.querySelector(`#remote-video-1`);
+                if (remoteVideo.srcObject !== event.streams[0]) {
+                    remoteVideo.srcObject = event.streams[0];
+                    publicarMensaje('Conectado a un stream remoto');
+                }
+            };
+            pc.onconnectionstatechange = () => {
+                if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                    publicarMensaje('Desconectado');
+                }
+            };
+        }
+
+        btnEmit.addEventListener('click', () => {
+            startStream();
+        });
+
+        btnOcultar.addEventListener('click', () => {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localVideo.srcObject = null;
+                publicarMensaje('Cámara oculta');
+                socket.emit('stop stream', username);
+            }
+        });
+
+        btnToggleMic.addEventListener('click', () => {
+            micEnabled = !micEnabled;
+            btnToggleMic.textContent = micEnabled ? 'Apagar Micrófono' : 'Encender Micrófono';
+            if (localStream) {
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = micEnabled;
+                }
+            }
+        });
+
+        socket.on('assign slot', ({ username, slotIndex }) => {
+            const remoteStatus = document.querySelector(`#remote-status-${slotIndex + 1}`);
+            const remoteContainer = document.querySelector(`#remote-video-container-${slotIndex + 1}`);
+            remoteStatus.innerText = `${username} en línea`;
+            remoteContainer.classList.remove('empty-slot');
+        });
+
+        socket.on('release slot', ({ slotIndex }) => {
+            const remoteStatus = document.querySelector(`#remote-status-${slotIndex + 1}`);
+            const remoteVideo = document.querySelector(`#remote-video-${slotIndex + 1}`);
+            remoteStatus.innerText = `Vídeo remoto ${slotIndex + 1}`;
+            remoteVideo.srcObject = null;
+            const remoteContainer = document.querySelector(`#remote-video-container-${slotIndex + 1}`);
+            remoteContainer.classList.add('empty-slot');
+        });
+
+        socket.on('stream', async ({ description }) => {
+            if (description) {
+                if (description.type === 'offer') {
+                    await pc.setRemoteDescription(new RTCSessionDescription(description));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    socket.emit('stream', { description: pc.localDescription });
+                } else if (description.type === 'answer') {
+                    await pc.setRemoteDescription(new RTCSessionDescription(description));
+                }
+            }
+        });
+
+        socket.on('ice-candidate', async candidate => {
+            try {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+                console.error('Error adding received ice candidate', e);
+            }
+        });
+
+        // Chat functionality
+        const form = document.getElementById('form');
+        const input = document.getElementById('input');
+        const messages = document.getElementById('messages');
+
+        socket.on('chat message', ({ msg, username }) => {
+            const item = document.createElement('li');
+            item.textContent = `${username}: ${msg}`;
+            messages.appendChild(item);
+            messages.scrollTop = messages.scrollHeight;
+        });
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (input.value && username) {
+                socket.emit('chat message', { msg: input.value, username, roomName });
+                input.value = '';
+            }
+        });
+
+        window.addEventListener('load', () => {
+            if (!username) {
+                username = prompt('Introduce tu nombre de usuario');
+                localStorage.setItem('username', username);
+            }
+        });
+    </script>
+</body>
+</html>
