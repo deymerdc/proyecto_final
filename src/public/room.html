@@ -11,27 +11,26 @@
     <div id="main-content">
         <div id="video-section">
             <div id="video-grid">
-                <div id="local-video-container" class="video-container">
-                    <video id="local-video" autoplay muted></video>
-                    <div id="local-status" class="status">Cámara no activa</div>
-                </div>
                 <div id="remote-video-container-1" class="video-container empty-slot">
-                    <video id="remote-video-1" autoplay></video>
+                    <img id="remote-video-1" />
                     <div id="remote-status-1" class="status">Vídeo remoto 1</div>
                 </div>
                 <div id="remote-video-container-2" class="video-container empty-slot">
-                    <video id="remote-video-2" autoplay></video>
+                    <img id="remote-video-2" />
                     <div id="remote-status-2" class="status">Vídeo remoto 2</div>
                 </div>
                 <div id="remote-video-container-3" class="video-container empty-slot">
-                    <video id="remote-video-3" autoplay></video>
+                    <img id="remote-video-3" />
                     <div id="remote-status-3" class="status">Vídeo remoto 3</div>
+                </div>
+                <div id="remote-video-container-4" class="video-container empty-slot">
+                    <img id="remote-video-4" />
+                    <div id="remote-status-4" class="status">Vídeo remoto 4</div>
                 </div>
             </div>
             <div id="control-container">
                 <button id="btn-emit">Emitir</button>
                 <button id="btn-ocultar">Ocultar</button>
-                <button id="btn-toggle-mic">Encender Micrófono</button>
             </div>
         </div>
         <div id="chat-container">
@@ -43,15 +42,13 @@
         </div>
     </div>
 
-    <script type="module">
-        import { io } from 'https://cdn.socket.io/4.3.2/socket.io.esm.min.js';
-
+    <script>
         const socket = io();
         let username = localStorage.getItem('username');
         const urlParams = new URLSearchParams(window.location.search);
         const roomName = urlParams.get('name');
-        let pc;
-        const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        let localStream;
+        let streaming = false;
 
         if (!username) {
             window.location.href = '/';
@@ -60,86 +57,58 @@
         // Join the room
         socket.emit('join room', { roomName, username });
 
-        // Video streaming
         const btnEmit = document.querySelector('#btn-emit');
         const btnOcultar = document.querySelector('#btn-ocultar');
-        const btnToggleMic = document.querySelector('#btn-toggle-mic');
-        const localVideo = document.querySelector('#local-video');
-        let micEnabled = false;
-        let localStream;
+        const videoGrid = document.querySelector('#video-grid');
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
 
-        function publicarMensaje(msg) {
-            document.querySelector('#local-status').innerText = msg;
+        function publicarMensaje(slotIndex, msg) {
+            const localStatus = document.querySelector(`#remote-status-${slotIndex + 1}`);
+            if (localStatus) localStatus.innerText = msg;
         }
 
         async function startStream() {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: micEnabled });
-                localVideo.srcObject = localStream;
-                publicarMensaje('Cámara funcionando');
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const videoElement = document.createElement('video');
+                videoElement.srcObject = localStream;
+                videoElement.play();
+                canvas.width = 512;
+                canvas.height = 384;
+                streaming = true;
+
                 socket.emit('start stream', username);
-                setupPeerConnection();
-                addLocalTracks();
+                publicarMensaje(socket.slotIndex, 'Cámara funcionando');
+
+                setInterval(() => {
+                    if (streaming) {
+                        context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+                        const imageData = canvas.toDataURL('image/webp');
+                        socket.emit('stream', { username, image: imageData, slotIndex: socket.slotIndex });
+                    }
+                }, 100);
             } catch (error) {
-                if (error.name === 'NotAllowedError' || error.name === 'NotFoundError' || error.name === 'NotReadableError') {
-                    alert('No se puede acceder a la cámara/microfono: ' + error.message);
-                } else {
-                    console.error('Error accessing media devices:', error);
-                }
-                publicarMensaje('Error al acceder a la cámara');
+                console.error('Error accessing media devices:', error);
+                publicarMensaje(socket.slotIndex, 'Error al acceder a la cámara');
             }
         }
 
-        function addLocalTracks() {
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-        }
-
-        function setupPeerConnection() {
-            pc = new RTCPeerConnection(configuration);
-            pc.onicecandidate = event => {
-                if (event.candidate) {
-                    socket.emit('ice-candidate', event.candidate);
-                }
-            };
-            pc.ontrack = event => {
-                const remoteVideo = document.querySelector(`#remote-video-1`);
-                if (remoteVideo.srcObject !== event.streams[0]) {
-                    remoteVideo.srcObject = event.streams[0];
-                    publicarMensaje('Conectado a un stream remoto');
-                }
-            };
-            pc.onconnectionstatechange = () => {
-                if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-                    publicarMensaje('Desconectado');
-                }
-            };
-        }
-
-        btnEmit.addEventListener('click', () => {
-            startStream();
-        });
+        btnEmit.addEventListener('click', startStream);
 
         btnOcultar.addEventListener('click', () => {
+            streaming = false;
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
-                localVideo.srcObject = null;
-                publicarMensaje('Cámara oculta');
+                const remoteVideo = document.querySelector(`#remote-video-${socket.slotIndex + 1}`);
+                remoteVideo.src = '';
+                publicarMensaje(socket.slotIndex, 'Cámara oculta');
                 socket.emit('stop stream', username);
             }
         });
 
-        btnToggleMic.addEventListener('click', () => {
-            micEnabled = !micEnabled;
-            btnToggleMic.textContent = micEnabled ? 'Apagar Micrófono' : 'Encender Micrófono';
-            if (localStream) {
-                const audioTrack = localStream.getAudioTracks()[0];
-                if (audioTrack) {
-                    audioTrack.enabled = micEnabled;
-                }
-            }
-        });
-
         socket.on('assign slot', ({ username, slotIndex }) => {
+            socket.slotIndex = slotIndex;
             const remoteStatus = document.querySelector(`#remote-status-${slotIndex + 1}`);
             const remoteContainer = document.querySelector(`#remote-video-container-${slotIndex + 1}`);
             remoteStatus.innerText = `${username} en línea`;
@@ -150,29 +119,15 @@
             const remoteStatus = document.querySelector(`#remote-status-${slotIndex + 1}`);
             const remoteVideo = document.querySelector(`#remote-video-${slotIndex + 1}`);
             remoteStatus.innerText = `Vídeo remoto ${slotIndex + 1}`;
-            remoteVideo.srcObject = null;
+            remoteVideo.src = '';
             const remoteContainer = document.querySelector(`#remote-video-container-${slotIndex + 1}`);
             remoteContainer.classList.add('empty-slot');
         });
 
-        socket.on('stream', async ({ description }) => {
-            if (description) {
-                if (description.type === 'offer') {
-                    await pc.setRemoteDescription(new RTCSessionDescription(description));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-                    socket.emit('stream', { description: pc.localDescription });
-                } else if (description.type === 'answer') {
-                    await pc.setRemoteDescription(new RTCSessionDescription(description));
-                }
-            }
-        });
-
-        socket.on('ice-candidate', async candidate => {
-            try {
-                await pc.addIceCandidate(new RTCIceCandidate(candidate));
-            } catch (e) {
-                console.error('Error adding received ice candidate', e);
+        socket.on('stream', ({ image, slotIndex }) => {
+            const remoteVideo = document.querySelector(`#remote-video-${slotIndex + 1}`);
+            if (remoteVideo) {
+                remoteVideo.src = image;
             }
         });
 

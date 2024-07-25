@@ -177,7 +177,7 @@ app.get('/rooms', async (req, res) => {
 });
 
 // Slot Manager
-const slotManager = new SlotManager(3);
+const slotManager = new SlotManager(4);
 
 // WebSocket connection for chat and video streaming
 io.on('connection', (socket) => {
@@ -257,27 +257,12 @@ io.on('connection', (socket) => {
     });
 
     socket.on('stream', (data) => {
-        const { username, image } = data;
+        const { username, image, slotIndex } = data;
         if (!username || !image) {
             return;
         }
 
-        const slotIndex = slotManager.getSlot(username);
-        if (slotIndex !== -1) {
-            io.to(socket.roomName).emit('stream', { ...data, slotIndex });
-        }
-    });
-
-    socket.on('offer', (userId, description) => {
-        io.to(userId).emit('offer', socket.id, description);
-    });
-
-    socket.on('answer', (userId, description) => {
-        io.to(userId).emit('answer', socket.id, description);
-    });
-
-    socket.on('ice-candidate', (userId, candidate) => {
-        io.to(userId).emit('ice-candidate', socket.id, candidate);
+        io.to(socket.roomName).emit('stream', { ...data, slotIndex });
     });
 
     socket.on('chat message', async ({ msg, roomName, username }) => {
@@ -295,28 +280,10 @@ io.on('connection', (socket) => {
             console.error(e);
         }
     });
-
-    if (!socket.recovered) {
-        const roomId = Number(socket.roomId);
-        const serverOffset = Number(socket.handshake.auth.serverOffset ?? 0);
-
-        if (Number.isFinite(roomId) && Number.isFinite(serverOffset)) {
-            db.execute({
-                sql: `SELECT id, content, username FROM messages WHERE room_id = ? AND id > ?`,
-                args: [roomId, serverOffset]
-            }).then(result => {
-                result.rows.forEach(row => {
-                    socket.emit('chat message', { msg: row.content, username: row.username }, row.id.toString());
-                });
-            }).catch(e => {
-                console.error(e);
-            });
-        } else {
-            console.error('Invalid roomId or serverOffset:', { roomId, serverOffset });
-        }
-    }
 });
 
 server.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
+
+export default server;
