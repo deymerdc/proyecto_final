@@ -31,6 +31,7 @@
             <div id="control-container">
                 <button id="btn-emit">Emitir</button>
                 <button id="btn-ocultar">Ocultar</button>
+                <button id="btn-toggle-mic">Encender Micrófono</button>
             </div>
         </div>
         <div id="chat-container">
@@ -49,6 +50,7 @@
         const roomName = urlParams.get('name');
         let localStream;
         let streaming = false;
+        let micEnabled = false;
 
         if (!username) {
             window.location.href = '/';
@@ -59,6 +61,7 @@
 
         const btnEmit = document.querySelector('#btn-emit');
         const btnOcultar = document.querySelector('#btn-ocultar');
+        const btnToggleMic = document.querySelector('#btn-toggle-mic');
         const videoGrid = document.querySelector('#video-grid');
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -70,7 +73,7 @@
 
         async function startStream() {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 const videoElement = document.createElement('video');
                 videoElement.srcObject = localStream;
                 videoElement.play();
@@ -81,13 +84,21 @@
                 socket.emit('start stream', username);
                 publicarMensaje(socket.slotIndex, 'Cámara funcionando');
 
-                setInterval(() => {
+                const emitStream = () => {
                     if (streaming) {
                         context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
                         const imageData = canvas.toDataURL('image/webp');
                         socket.emit('stream', { username, image: imageData, slotIndex: socket.slotIndex });
                     }
-                }, 100);
+                };
+
+                socket.on('stop stream', () => {
+                    clearInterval(emitStreamInterval);
+                });
+
+                const emitStreamInterval = setInterval(emitStream, 100);
+
+                toggleMic(false);
             } catch (error) {
                 console.error('Error accessing media devices:', error);
                 publicarMensaje(socket.slotIndex, 'Error al acceder a la cámara');
@@ -104,6 +115,25 @@
                 remoteVideo.src = '';
                 publicarMensaje(socket.slotIndex, 'Cámara oculta');
                 socket.emit('stop stream', username);
+                toggleMic(false);
+            }
+        });
+
+        function toggleMic(enable) {
+            if (localStream) {
+                localStream.getAudioTracks().forEach(track => {
+                    track.enabled = enable;
+                });
+                micEnabled = enable;
+                btnToggleMic.textContent = enable ? 'Apagar Micrófono' : 'Encender Micrófono';
+            }
+        }
+
+        btnToggleMic.addEventListener('click', () => {
+            if (socket.slotIndex !== undefined && socket.slotIndex !== null) {
+                toggleMic(!micEnabled);
+            } else {
+                alert('Solo los usuarios con transmisión de video pueden encender el micrófono');
             }
         });
 
