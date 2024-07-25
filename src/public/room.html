@@ -56,7 +56,6 @@
             window.location.href = '/';
         }
 
-        // Join the room
         socket.emit('join room', { roomName, username });
 
         const btnEmit = document.querySelector('#btn-emit');
@@ -64,26 +63,18 @@
         const btnToggleMic = document.querySelector('#btn-toggle-mic');
         const videoGrid = document.querySelector('#video-grid');
 
+        function publicarMensaje(slotIndex, msg) {
+            const localStatus = document.querySelector(`#remote-status-${slotIndex + 1}`);
+            if (localStatus) localStatus.innerText = msg;
+        }
+
         async function startStream() {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                const videoElement = document.querySelector(`#remote-video-${socket.slotIndex + 1}`);
-                videoElement.srcObject = localStream;
-                streaming = true;
-
-                socket.emit('start stream', { username, slotIndex: socket.slotIndex });
-                publicarMensaje(socket.slotIndex, 'Cámara funcionando');
-
-                localStream.getVideoTracks()[0].onended = () => {
-                    stopStream();
-                };
-
-                localStream.getAudioTracks()[0].onended = () => {
-                    stopStream();
-                };
+                socket.emit('start stream', { username });
             } catch (error) {
                 console.error('Error accessing media devices:', error);
-                publicarMensaje(socket.slotIndex, 'Error al acceder a la cámara');
+                alert('Error al acceder a la cámara y/o micrófono');
             }
         }
 
@@ -92,8 +83,9 @@
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
                 const remoteVideo = document.querySelector(`#remote-video-${socket.slotIndex + 1}`);
-                remoteVideo.srcObject = null;
-                publicarMensaje(socket.slotIndex, 'Cámara oculta');
+                if (remoteVideo) {
+                    remoteVideo.srcObject = null;
+                }
                 socket.emit('stop stream', { username, slotIndex: socket.slotIndex });
             }
         }
@@ -126,28 +118,30 @@
             const remoteContainer = document.querySelector(`#remote-video-container-${slotIndex + 1}`);
             remoteStatus.innerText = `${username} en línea`;
             remoteContainer.classList.remove('empty-slot');
+            const videoElement = document.querySelector(`#remote-video-${slotIndex + 1}`);
+            if (videoElement) {
+                videoElement.srcObject = localStream;
+            }
+            streaming = true;
         });
 
         socket.on('release slot', ({ slotIndex }) => {
             const remoteStatus = document.querySelector(`#remote-status-${slotIndex + 1}`);
             const remoteVideo = document.querySelector(`#remote-video-${slotIndex + 1}`);
             remoteStatus.innerText = `Vídeo remoto ${slotIndex + 1}`;
-            remoteVideo.srcObject = null;
+            if (remoteVideo) {
+                remoteVideo.srcObject = null;
+            }
             const remoteContainer = document.querySelector(`#remote-video-container-${slotIndex + 1}`);
             remoteContainer.classList.add('empty-slot');
         });
 
-        socket.on('stream', ({ username, slotIndex, stream }) => {
+        socket.on('stream', ({ username, image, slotIndex }) => {
             const remoteVideo = document.querySelector(`#remote-video-${slotIndex + 1}`);
             if (remoteVideo) {
-                remoteVideo.srcObject = stream;
+                remoteVideo.src = image;
             }
         });
-
-        // Chat functionality
-        const form = document.getElementById('form');
-        const input = document.getElementById('input');
-        const messages = document.getElementById('messages');
 
         socket.on('chat message', ({ msg, username }) => {
             const item = document.createElement('li');
@@ -155,6 +149,10 @@
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
         });
+
+        const form = document.getElementById('form');
+        const input = document.getElementById('input');
+        const messages = document.getElementById('messages');
 
         form.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -170,11 +168,6 @@
                 localStorage.setItem('username', username);
             }
         });
-
-        function publicarMensaje(slotIndex, msg) {
-            const localStatus = document.querySelector(`#remote-status-${slotIndex + 1}`);
-            if (localStatus) localStatus.innerText = msg;
-        }
     </script>
 </body>
 </html>

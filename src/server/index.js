@@ -232,29 +232,29 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('start stream', ({ username, slotIndex }) => {
-        if (!username || slotIndex === undefined || slotIndex === null) {
+    socket.on('start stream', ({ username }) => {
+        if (!username) {
             return;
         }
 
-        const assignedSlot = slotManager.assignSlot(username);
-        if (assignedSlot !== -1) {
+        const slotIndex = slotManager.assignSlot(username);
+        if (slotIndex !== -1) {
             socket.username = username;
-            socket.slotIndex = assignedSlot;
-            io.to(socket.roomName).emit('assign slot', { username, slotIndex: assignedSlot });
+            socket.slotIndex = slotIndex;
+            io.to(socket.roomName).emit('assign slot', { username, slotIndex });
         } else {
             socket.emit('error', { message: 'No available slot' });
         }
     });
 
-    socket.on('stop stream', ({ username, slotIndex }) => {
-        if (!username || slotIndex === undefined || slotIndex === null) {
+    socket.on('stop stream', ({ username }) => {
+        if (!username) {
             return;
         }
 
-        const releasedSlot = slotManager.releaseSlot(username);
-        if (releasedSlot !== -1) {
-            io.to(socket.roomName).emit('release slot', { slotIndex: releasedSlot, username });
+        const slotIndex = slotManager.releaseSlot(username);
+        if (slotIndex !== -1) {
+            io.to(socket.roomName).emit('release slot', { slotIndex, username });
         }
     });
 
