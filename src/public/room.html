@@ -61,7 +61,6 @@
         const btnEmit = document.querySelector('#btn-emit');
         const btnOcultar = document.querySelector('#btn-ocultar');
         const btnToggleMic = document.querySelector('#btn-toggle-mic');
-        const videoGrid = document.querySelector('#video-grid');
 
         function publicarMensaje(slotIndex, msg) {
             const localStatus = document.querySelector(`#remote-status-${slotIndex + 1}`);
@@ -82,10 +81,6 @@
             streaming = false;
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
-                const remoteVideo = document.querySelector(`#remote-video-${socket.slotIndex + 1}`);
-                if (remoteVideo) {
-                    remoteVideo.srcObject = null;
-                }
                 socket.emit('stop stream', { username, slotIndex: socket.slotIndex });
             }
         }
@@ -118,11 +113,13 @@
             const remoteContainer = document.querySelector(`#remote-video-container-${slotIndex + 1}`);
             remoteStatus.innerText = `${username} en línea`;
             remoteContainer.classList.remove('empty-slot');
-            const videoElement = document.querySelector(`#remote-video-${slotIndex + 1}`);
-            if (videoElement) {
-                videoElement.srcObject = localStream;
+            if (username === socket.username) {
+                const videoElement = document.querySelector(`#remote-video-${slotIndex + 1}`);
+                if (videoElement) {
+                    videoElement.srcObject = localStream;
+                }
+                streaming = true;
             }
-            streaming = true;
         });
 
         socket.on('release slot', ({ slotIndex }) => {
@@ -138,7 +135,7 @@
 
         socket.on('stream', ({ username, image, slotIndex }) => {
             const remoteVideo = document.querySelector(`#remote-video-${slotIndex + 1}`);
-            if (remoteVideo) {
+            if (remoteVideo && username !== socket.username) {
                 remoteVideo.src = image;
             }
         });

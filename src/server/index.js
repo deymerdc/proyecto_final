@@ -242,6 +242,7 @@ io.on('connection', (socket) => {
             socket.username = username;
             socket.slotIndex = slotIndex;
             io.to(socket.roomName).emit('assign slot', { username, slotIndex });
+            socket.emit('slot assigned', { slotIndex }); // Asegura que el cliente sepa su slot asignado
         } else {
             socket.emit('error', { message: 'No available slot' });
         }
