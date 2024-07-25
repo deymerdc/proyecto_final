@@ -232,37 +232,38 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('start stream', (username) => {
-        if (!username) {
+    socket.on('start stream', ({ username, slotIndex }) => {
+        if (!username || slotIndex === undefined || slotIndex === null) {
             return;
         }
 
-        const slotIndex = slotManager.assignSlot(username);
-        if (slotIndex !== -1) {
+        const assignedSlot = slotManager.assignSlot(username);
+        if (assignedSlot !== -1) {
             socket.username = username;
-            socket.slotIndex = slotIndex;
-            io.to(socket.roomName).emit('assign slot', { username, slotIndex });
+            socket.slotIndex = assignedSlot;
+            io.to(socket.roomName).emit('assign slot', { username, slotIndex: assignedSlot });
+        } else {
+            socket.emit('error', { message: 'No available slot' });
         }
     });
 
-    socket.on('stop stream', (username) => {
-        if (!username) {
+    socket.on('stop stream', ({ username, slotIndex }) => {
+        if (!username || slotIndex === undefined || slotIndex === null) {
             return;
         }
 
-        const slotIndex = slotManager.releaseSlot(username);
-        if (slotIndex !== -1) {
-            io.to(socket.roomName).emit('release slot', { slotIndex, username });
+        const releasedSlot = slotManager.releaseSlot(username);
+        if (releasedSlot !== -1) {
+            io.to(socket.roomName).emit('release slot', { slotIndex: releasedSlot, username });
         }
     });
 
-    socket.on('stream', (data) => {
-        const { username, image, slotIndex } = data;
-        if (!username || !image) {
+    socket.on('stream', ({ username, image, slotIndex }) => {
+        if (!username || !image || slotIndex === undefined || slotIndex === null) {
             return;
         }
 
-        io.to(socket.roomName).emit('stream', { ...data, slotIndex });
+        io.to(socket.roomName).emit('stream', { username, image, slotIndex });
     });
 
     socket.on('chat message', async ({ msg, roomName, username }) => {
